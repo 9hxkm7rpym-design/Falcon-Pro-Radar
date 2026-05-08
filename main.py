@@ -1,9 +1,9 @@
 import yfinance as yf
 import requests
 import time
-import pandas_ta as ta
 from threading import Thread
 from flask import Flask
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -20,14 +20,21 @@ def send_tg(text):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
     except: pass
 
+def calculate_rsi(data, window=14):
+    delta = data.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
 def analyze_whale_zone(symbol):
     try:
+        # جلب البيانات
         df = yf.download(symbol, period='2d', interval='5m', progress=False)
         if df.empty: return
         
-        # حساب المؤشرات
-        df['RSI'] = ta.rsi(df['Close'], length=14)
-        df['VWAP'] = ta.vwap(df['High'], df['Low'], df['Close'], df['Volume'])
+        # حساب المؤشرات يدوياً لتجنب مشاكل المكتبات
+        df['RSI'] = calculate_rsi(df['Close'])
         
         price = df['Close'].iloc[-1]
         rsi = df['RSI'].iloc[-1]
@@ -37,19 +44,19 @@ def analyze_whale_zone(symbol):
         signal = ""
         confidence = 0
         
-        # رصد دخول الحيتان (سيولة عالية مع سعر مناسب)
-        if rsi < 35 and current_volume > (volume_avg * 1.5):
+        # رصد دخول الحيتان (سيولة عالية مع RSI متطرف)
+        if rsi < 32 and current_volume > (volume_avg * 1.3):
             signal = "CALL 🟢"
-            confidence = 85 if rsi < 30 else 70
-        elif rsi > 65 and current_volume > (volume_avg * 1.5):
+            confidence = 90 if rsi < 25 else 75
+        elif rsi > 68 and current_volume > (volume_avg * 1.3):
             signal = "PUT 🔴"
-            confidence = 85 if rsi > 70 else 70
+            confidence = 90 if rsi > 75 else 75
 
         if signal:
             # حساب الأهداف (Target) والسترايك
             strike = round(price) 
-            target = price * 1.02 if signal == "CALL 🟢" else price * 0.98
-            stop_loss = price * 0.99 if signal == "CALL 🟢" else price * 1.01
+            target = price * 1.015 if signal == "CALL 🟢" else price * 0.985
+            stop_loss = price * 0.992 if signal == "CALL 🟢" else price * 1.008
             
             msg = (f"🐳 <b>رصد دخول حيتان في {symbol}</b>\n"
                    f"--------------------------\n"
@@ -75,17 +82,19 @@ def analyze_whale_zone(symbol):
                 send_tg(f"💰 <b>تنبيه جني أرباح {symbol}!</b>\nوصل السعر للهدف المحدد: ${price:.2f}\nاخرجي الآن ✅")
                 del active_trades[symbol]
 
-    except: pass
+    except Exception as e:
+        print(f"Error analyzing {symbol}: {e}")
 
 def start_bot():
-    send_tg("🚀 <b>تم تفعيل رادار الحيتان (النسخة الاحترافية)</b>\nسأراقب السيولة، الأهداف، ودرجة الثقة فوراً.")
+    send_tg("🚀 <b>تم إطلاق رادار الحيتان (النسخة المستقرة)</b>\nالآن أراقب السيولة والأهداف بدقة عالية.")
     symbols = ['SPY', 'QQQ', 'NVDA', 'TSLA', 'AAPL', 'OXY']
     while True:
         for s in symbols:
             analyze_whale_zone(s)
-            time.sleep(5)
-        time.sleep(30)
+            time.sleep(2) # سرعة التنقل بين الأسهم
+        time.sleep(30) # انتظار نصف دقيقة قبل المسح القادم
 
 if __name__ == "__main__":
+    # تشغيل سيرفر صغير لإبقاء Render شغال
     Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
     start_bot()
