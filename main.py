@@ -10,10 +10,9 @@ app = Flask(__name__)
 @app.route('/')
 def home(): return "Whale-Hunter-Active"
 
-# --- الإعدادات ---
 TOKEN = "8308789681:AAFLJuVqqQ3Jqtgth51in4IZpN1X_1aZYAE"
 CHAT_ID = "1068286006"
-active_trades = {} # لمتابعة الأهداف
+active_trades = {}
 
 def send_tg(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -29,13 +28,9 @@ def calculate_rsi(data, window=14):
 
 def analyze_whale_zone(symbol):
     try:
-        # جلب البيانات
         df = yf.download(symbol, period='2d', interval='5m', progress=False)
         if df.empty: return
-        
-        # حساب المؤشرات يدوياً لتجنب مشاكل المكتبات
         df['RSI'] = calculate_rsi(df['Close'])
-        
         price = df['Close'].iloc[-1]
         rsi = df['RSI'].iloc[-1]
         volume_avg = df['Volume'].tail(10).mean()
@@ -44,7 +39,6 @@ def analyze_whale_zone(symbol):
         signal = ""
         confidence = 0
         
-        # رصد دخول الحيتان (سيولة عالية مع RSI متطرف)
         if rsi < 32 and current_volume > (volume_avg * 1.3):
             signal = "CALL 🟢"
             confidence = 90 if rsi < 25 else 75
@@ -53,7 +47,6 @@ def analyze_whale_zone(symbol):
             confidence = 90 if rsi > 75 else 75
 
         if signal:
-            # حساب الأهداف (Target) والسترايك
             strike = round(price) 
             target = price * 1.015 if signal == "CALL 🟢" else price * 0.985
             stop_loss = price * 0.992 if signal == "CALL 🟢" else price * 1.008
@@ -67,23 +60,18 @@ def analyze_whale_zone(symbol):
                    f"📊 السيولة: {'عالية جداً 🔥' if current_volume > volume_avg*2 else 'متزايدة 📈'}\n"
                    f"--------------------------\n"
                    f"✅ الهدف: ${target:.2f}\n"
-                   f"❌ وقف الخسارة: ${stop_loss:.2f}\n"
-                   f"🔗 <a href='https://www.tradingview.com/chart/?symbol={symbol}'>تحليل الشارت</a>")
+                   f"❌ وقف الخسارة: ${stop_loss:.2f}")
             
             send_tg(msg)
-            # إضافة الصفقة للمتابعة
             active_trades[symbol] = {'target': target, 'type': signal}
 
-        # متابعة الأهداف الصفقات المفتوحة
         if symbol in active_trades:
             trade = active_trades[symbol]
             if (trade['type'] == "CALL 🟢" and price >= trade['target']) or \
                (trade['type'] == "PUT 🔴" and price <= trade['target']):
                 send_tg(f"💰 <b>تنبيه جني أرباح {symbol}!</b>\nوصل السعر للهدف المحدد: ${price:.2f}\nاخرجي الآن ✅")
                 del active_trades[symbol]
-
-    except Exception as e:
-        print(f"Error analyzing {symbol}: {e}")
+    except: pass
 
 def start_bot():
     send_tg("🚀 <b>تم إطلاق رادار الحيتان (النسخة المستقرة)</b>\nالآن أراقب السيولة والأهداف بدقة عالية.")
@@ -91,10 +79,9 @@ def start_bot():
     while True:
         for s in symbols:
             analyze_whale_zone(s)
-            time.sleep(2) # سرعة التنقل بين الأسهم
-        time.sleep(30) # انتظار نصف دقيقة قبل المسح القادم
+            time.sleep(2)
+        time.sleep(30)
 
 if __name__ == "__main__":
-    # تشغيل سيرفر صغير لإبقاء Render شغال
     Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
     start_bot()
