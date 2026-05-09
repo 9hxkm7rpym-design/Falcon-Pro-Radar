@@ -1,59 +1,86 @@
 import yfinance as yf
 import requests
 import time
+import pandas_ta as ta
 from threading import Thread
 from flask import Flask
 
 app = Flask(__name__)
-
 @app.route('/')
-def home(): return "الرادار يعمل بقوة"
+def home(): return "رادار القيعان والسيولة اللحظي نشط"
 
-# معلومات البوت الخاصة بك
 TOKEN = "8308789681:AAFLJuVqqQ3Jqtgth51in4IZpN1X_1aZYAE"
 CHAT_ID = "1068286006"
 
 def send_tg(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    try: requests.post(url, json={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
+    try: requests.post(url, json={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=5)
     except: pass
 
+def get_market_analysis(symbol):
+    try:
+        # سحب بيانات تشمل التداول الليلي prepost=True
+        df = yf.download(symbol, period='1d', interval='5m', prepost=True, progress=False)
+        if df.empty: return None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        price = last['Close']
+        
+        # 1. تحليل الشموع والقيعان (Hammer Detection)
+        body = abs(last['Close'] - last['Open'])
+        lower_shadow = last['Open'] - last['Low'] if last['Close'] > last['Open'] else last['Close'] - last['Low']
+        is_bottom_candle = lower_shadow > (body * 2) # شمعة ارتداد من قاع
+        
+        # 2. مؤشر RSI
+        df['RSI'] = ta.rsi(df['Close'], length=14)
+        rsi_val = df['RSI'].iloc[-1]
+        
+        # 3. تقييم قوة الفرصة (Logic)
+        if (rsi_val < 30 or rsi_val > 70) and is_bottom_candle:
+            strength = "قوية جداً 🔥 (منطقة حيتان)"
+            stars = "⭐⭐⭐"
+        elif (rsi_val < 40 or rsi_val > 60):
+            strength = "متوسطة 🟠 (فرصة جيدة)"
+            stars = "⭐⭐"
+        else:
+            strength = "ضعيفة ⚠️ (مخاطرة عالية)"
+            stars = "⭐"
+            
+        return {
+            "price": price, "rsi": rsi_val, "strength": strength, 
+            "stars": stars, "is_bottom": is_bottom_candle
+        }
+    except: return None
+
 def run_radar():
-    # القائمة تشمل الآن AMZN و AMD
-    symbols = ['AMZN', 'AMD', 'NVDA', 'TSLA', 'SPY', 'AAPL']
-    
-    send_tg("🚀 <b>تم تفعيل الرادار الشامل (أمازون + AMD)</b>\nسأقوم بإرسال تنبيهات مستمرة الآن حتى والسوق مقفل.")
+    symbols = ['AMZN', 'AMD', 'NVDA', 'TSLA', 'AAPL', 'OXY']
+    send_tg("🕵️‍♂️ <b>بدء الرادار الشامل (قيعان + سيولة + تداول ليلي)</b>\nسأرسل لك كل الفرص مع تقييم قوتها.")
 
     while True:
         for symbol in symbols:
-            try:
-                # سحب بيانات السهم (آخر سعر مسجل)
-                ticker = yf.Ticker(symbol)
-                price = ticker.fast_info['last_price']
+            data = get_market_analysis(symbol)
+            if data:
+                direction = "CALL 🟢" if data['rsi'] < 55 else "PUT 🔴"
+                target = data['price'] * 1.015 if "CALL" in direction else data['price'] * 0.985
                 
-                # حساب الأهداف (تغيير بسيط بنسبة 1.5% للربح)
-                target = price * 1.015
-                stop_loss = price * 0.99
-                
-                msg = (f"🐳 <b>رصد حوت لحظي في {symbol}</b>\n"
+                msg = (f"🔍 <b>تنبيه الرادار: {symbol}</b>\n"
                        f"--------------------------\n"
-                       f"📍 الاتجاه المتوقع: CALL 🟢\n"
-                       f"💰 السعر الحالي: {price:.2f}\n"
-                       f"✅ الهدف المقترح: {target:.2f}\n"
-                       f"❌ وقف الخسارة: {stop_loss:.2f}\n"
+                       f"📊 القوة: <b>{data['strength']}</b> {data['stars']}\n"
+                       f"📍 الاتجاه المتوقع: {direction}\n"
+                       f"💰 السعر الحالي: {data['price']:.2f}\n"
+                       f"📈 مؤشر RSI: {data['rsi']:.1f}\n"
+                       f"🏠 القيعان: {'رصد ارتداد من قاع ✅' if data['is_bottom'] else 'لا يوجد شكل قاع واضح ❌'}\n"
+                       f"🎯 الهدف المقترح: {target:.2f}\n"
                        f"--------------------------\n"
-                       f"⚡️ الحالة: مراقبة فورية مستمرة")
+                       f"🌃 يشمل التداول الليلي | يعمل الآن")
                 
                 send_tg(msg)
-                time.sleep(2) # انتظار ثانيتين بين كل سهم عشان السرعة
-            except:
-                continue
+                time.sleep(1) # سرعة التنقل بين الأسهم
         
-        # ينتظر 30 ثانية فقط ويرجع يرسل التحديثات من جديد
-        time.sleep(30) 
+        # انتظار دقيقتين قبل الجولة القادمة لضمان الاستمرارية
+        time.sleep(120) 
 
 if __name__ == "__main__":
-    # تشغيل السيرفر لضمان بقاء Render نشطاً
     Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
-    # تشغيل الرادار
     run_radar()
