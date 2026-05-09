@@ -6,7 +6,7 @@ from flask import Flask
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Radar is Online"
+def home(): return "Radar is Online ✅"
 
 TOKEN = "8308789681:AAFLJuVqqQ3Jqtgth51in4IZpN1X_1aZYAE"
 CHAT_ID = "1068286006"
@@ -18,27 +18,31 @@ def send_tg(text):
 
 def run_radar():
     symbols = ['AMZN', 'AMD', 'NVDA', 'TSLA', 'AAPL', 'OXY']
-    send_tg("🚀 <b>تم تحديث الرادار بنجاح</b>\nسيتم تقييم قوة الفرص الآن.")
+    send_tg("🚀 <b>نظام الرادار المطور جاهز</b>\nجاري مراقبة القيعان والسيولة الليليّة...")
     while True:
         for symbol in symbols:
             try:
+                # سحب البيانات بما فيها After-Hours
                 df = yf.download(symbol, period='1d', interval='15m', prepost=True, progress=False)
                 if df.empty: continue
+                
                 price = df['Close'].iloc[-1]
+                # حساب RSI بسيط يدوياً عشان نضمن الاستقرار
                 delta = df['Close'].diff()
                 gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
                 loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                rsi = 100 - (100 / (1 + (gain.iloc[-1] / loss.iloc[-1])))
-                
-                if rsi < 30 or rsi > 70: strength = "قوية جداً 🔥"
+                rsi = 100 - (100 / (1 + (gain.iloc[-1] / (loss.iloc[-1] + 1e-9))))
+
+                # تحديد القوة
+                if rsi < 35 or rsi > 65: strength = "قوية جداً 🔥"
                 elif rsi < 45 or rsi > 55: strength = "متوسطة 🟠"
                 else: strength = "ضعيفة ⚠️"
 
-                msg = (f"🎯 <b>فرصة: {symbol}</b>\n"
+                msg = (f"🎯 <b>تنبيه: {symbol}</b>\n"
                        f"📊 القوة: {strength}\n"
                        f"💰 السعر: {price:.2f}\n"
                        f"📈 RSI: {rsi:.1f}\n"
-                       f"🌃 تشمل التداول الليلي")
+                       f"🌃 الحالة: تداول ليلي/نشط")
                 send_tg(msg)
                 time.sleep(2)
             except: continue
