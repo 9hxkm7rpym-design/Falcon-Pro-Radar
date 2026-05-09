@@ -18,29 +18,30 @@ def send_tg(text):
     except: pass
 
 def start_test():
-    # رسالة ترحيب
-    send_tg("⚙️ <b>بدء فحص النظام (تجربة وهمية)...</b>")
+    send_tg("⚙️ <b>بدء فحص النظام النهائي...</b>")
     
-    # تجربة سحب بيانات سهم واحد لإثبات أن البوت يقرأ السوق
     symbol = 'NVDA'
     try:
-        data = yf.download(symbol, period='1d', interval='1m')
-        price = data['Close'].iloc[-1]
+        # جلب البيانات
+        data = yf.download(symbol, period='5d', interval='1m')
+        # تحويل السعر لرقم بسيط
+        price = float(data['Close'].iloc[-1])
         
-        msg = (f"🐳 <b>إشارة تجريبية: رصد حيتان في {symbol}</b>\n"
+        target = price * 1.015
+        stop_loss = price * 0.99
+        
+        msg = (f"🐳 <b>تجربة صيد حيتان ناجحة!</b>\n"
                f"--------------------------\n"
-               f"📍 الاتجاه: CALL 🟢 (تجربة)\n"
-               f"💰 آخر سعر مسجل: ${price:.2f}\n"
-               f"🎯 الهدف التجريبي: ${price * 1.01:.2f}\n"
-               f"❌ وقف الخسارة: ${price * 0.99:.2f}\n"
+               f"📍 السهم: {symbol}\n"
+               f"💰 السعر الحالي: {price:.2f}\n"
+               f"✅ الهدف: {target:.2f}\n"
+               f"❌ الستوب: {stop_loss:.2f}\n"
                f"--------------------------\n"
-               f"✅ إذا وصلت هذه الرسالة، فالبوت جاهز للعمل يوم الاثنين!")
+               f"🚀 البوت الآن جاهز 100% ليوم الاثنين!")
         send_tg(msg)
     except Exception as e:
-        send_tg(f"خطأ في التجربة: {e}")
+        send_tg(f"حدث خطأ بسيط: {str(e)}")
 
 if __name__ == "__main__":
-    # تشغيل السيرفر
     Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
-    # تشغيل الفحص لمرة واحدة
     start_test()
