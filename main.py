@@ -1,13 +1,12 @@
 import yfinance as yf
 import requests
-import time
 from threading import Thread
 from flask import Flask
 
 app = Flask(__name__)
 
 @app.route('/')
-def home(): return "Test-Active"
+def home(): return "Ready"
 
 TOKEN = "8308789681:AAFLJuVqqQ3Jqtgth51in4IZpN1X_1aZYAE"
 CHAT_ID = "1068286006"
@@ -18,14 +17,13 @@ def send_tg(text):
     except: pass
 
 def start_test():
-    send_tg("⚙️ <b>بدء فحص النظام النهائي...</b>")
+    send_tg("⚙️ <b>بدء فحص النظام النهائي (نسخة الويكند)...</b>")
     
     symbol = 'NVDA'
     try:
-        # جلب البيانات
-        data = yf.download(symbol, period='5d', interval='1m')
-        # تحويل السعر لرقم بسيط
-        price = float(data['Close'].iloc[-1])
+        # بنسحب بيانات اليوم السابق لأن السوق مقفل الآن
+        ticker = yf.Ticker(symbol)
+        price = ticker.fast_info['last_price']
         
         target = price * 1.015
         stop_loss = price * 0.99
@@ -33,14 +31,14 @@ def start_test():
         msg = (f"🐳 <b>تجربة صيد حيتان ناجحة!</b>\n"
                f"--------------------------\n"
                f"📍 السهم: {symbol}\n"
-               f"💰 السعر الحالي: {price:.2f}\n"
-               f"✅ الهدف: {target:.2f}\n"
-               f"❌ الستوب: {stop_loss:.2f}\n"
+               f"💰 سعر الإغلاق: {price:.2f}\n"
+               f"✅ الهدف المقترح: {target:.2f}\n"
+               f"❌ وقف الخسارة: {stop_loss:.2f}\n"
                f"--------------------------\n"
-               f"🚀 البوت الآن جاهز 100% ليوم الاثنين!")
+               f"🚀 رادار الحيتان جاهز تماماً للافتتاح!")
         send_tg(msg)
     except Exception as e:
-        send_tg(f"حدث خطأ بسيط: {str(e)}")
+        send_tg(f"حدث خطأ في النظام: {str(e)}")
 
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
