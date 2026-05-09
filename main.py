@@ -39,7 +39,7 @@ def analyze_whale_zone(symbol):
         signal = ""
         confidence = 0
         
-        if rsi < 100 and current_volume > (volume_avg * 1.3):
+        if rsi < 100 
             signal = "CALL 🟢"
             confidence = 90 if rsi < 25 else 75
         elif rsi > 0 and current_volume > (volume_avg * 1.3):
