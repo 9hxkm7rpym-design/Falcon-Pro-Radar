@@ -1,53 +1,56 @@
 import telebot
 import feedparser
+import time
 from flask import Flask
 from threading import Thread
 
-# توكن البوت حقك
 TOKEN = "8308789681:AAFLJuVqqQ3Jqtgth51in4IZpN1X_1aZYAE"
+YOUR_CHAT_ID = "634887309" # حطي الآيدي حقك هنا عشان يرسل لك مباشرة
 bot = telebot.TeleBot(TOKEN)
-
-# تنظيف أي تعليق قديم
-bot.remove_webhook()
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Falcon News is Live! ⚽🌍"
+def home(): return "Falcon News Radar is Scanning... 📡"
 
-# دالة تجيب الأخبار وترتبها
-def get_news_feed(url):
-    feed = feedparser.parse(url)
-    out = ""
-    for entry in feed.entries[:6]: # بيجيب لك أفضل 6 أخبار
-        out += f"🔹 {entry.title}\n🔗 {entry.link}\n\n"
-    return out if out else "لا توجد أخبار حالياً."
+# قائمة لحفظ الأخبار القديمة عشان ما يكررها لك
+sent_news = []
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    bot.reply_to(message, "هلا بك في رادار الأخبار! 🦅\n\nأرسل 'كورة' لأخبار الملاعب\nأرسل 'عالم' لأخبار العالم")
-
-@bot.message_handler(func=lambda message: True)
-def handle_messages(message):
-    msg = message.text.lower()
-    
-    if "كورة" in msg or "رياضة" in msg:
-        bot.reply_to(message, "⚽ جاري صيد أخبار الكورة والصفقات...")
-        # رابط متخصص كورة (FilGoal)
-        news = get_news_feed("https://www.filgoal.com/section/rss?sectionid=2")
-        bot.send_message(message.chat.id, f"🏆 **أخبار كرة القدم:**\n\n{news}")
-
-    elif "عالم" in msg or "أخبار" in msg:
-        bot.reply_to(message, "🌍 جاري جلب العناوين العالمية العاجلة...")
-        # رابط سكاي نيوز عالم
-        news = get_news_feed("https://www.skynewsarabia.com/rss/v1/world.xml")
-        bot.send_message(message.chat.id, f"🌎 **عاجل العالم:**\n\n{news}")
-    
-    else:
-        bot.reply_to(message, "أرسل 'كورة' أو 'عالم' عشان أعطيك الأخبار. 😉")
+def news_radar():
+    while True:
+        try:
+            # روابط الرادار (كورة + عالم)
+            urls = [
+                "https://feeds.bbci.co.uk/arabic/sports/rss.xml",
+                "https://www.skynewsarabia.com/rss/v1/world.xml"
+            ]
+            
+            for url in urls:
+                feed = feedparser.parse(url)
+                for entry in feed.entries[:3]: # يشيّك على آخر 3 أخبار في كل رابط
+                    if entry.link not in sent_news:
+                        # خبر جديد! أرسله فوراً
+                        message = f"🚨 **خبر عاجل من الرادار:**\n\n{entry.title}\n\n🔗 {entry.link}"
+                        bot.send_message(YOUR_CHAT_ID, message)
+                        
+                        # أضفه للقائمة عشان ما يرسله مرة ثانية
+                        sent_news.append(entry.link)
+                        
+                        # نحافظ على القائمة صغيرة (آخر 50 خبر بس)
+                        if len(sent_news) > 50:
+                            sent_news.pop(0)
+            
+            # انتظر 10 دقائق قبل ما تشيك مرة ثانية (عشان ما ينحظر)
+            time.sleep(600) 
+            
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(60)
 
 def run_flask():
     app.run(host='0.0.0.0', port=10000)
 
 if __name__ == "__main__":
+    # تشغيل الرادار في خلفية البوت
+    Thread(target=news_radar).start()
     Thread(target=run_flask).start()
     bot.infinity_polling()
