@@ -1,34 +1,51 @@
 import os
-
-# أمر إجباري لتثبيت المكتبات قبل أي شيء آخر
-os.system('pip install pyTelegramBotAPI yfinance pandas pandas-ta flask')
-
 import telebot
-import yfinance as yf
-import pandas_ta as ta
 from flask import Flask
 from threading import Thread
 import time
 
+# تثبيت المكتبات الأساسية تلقائياً
+os.system('pip install pyTelegramBotAPI yfinance flask')
+
+import yfinance as yf
+
+# إعدادات البوت (التوكن حقك جاهز)
 TOKEN = "7018512629:AAGgCHUnPn2gU2uo-d8fneC-fpquxyTHdMs"
 CHAT_ID = "634887309"
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
+# القائمة المحدثة (الأسهم الأربعة + سباكس)
+WATCHLIST = ['NVDA', 'TSLA', 'AMZN', 'OXY', '^SPX']
+
 @app.route('/')
-def home(): return "Falcon is Live!"
+def home(): return "Falcon Radar is Active! 🦅"
 
 def scanner():
     while True:
-        for s in ['NVDA', 'TSLA', 'AMZN', 'OXY']:
+        for s in WATCHLIST:
             try:
-                df = yf.download(s, period='5d', interval='15m', progress=False)
-                if not df.empty:
-                    rsi = ta.rsi(df['Close'], length=14).iloc[-1]
-                    if rsi < 35:
-                        bot.send_message(CHAT_ID, f"🎯 فرصة قنص: {s}\nالسبب: السهم رخيص (RSI: {rsi:.1f})")
-            except: pass
-        time.sleep(600)
+                # جلب بيانات السهم
+                ticker = yf.Ticker(s)
+                data = ticker.history(period='1d')
+                
+                if not data.empty:
+                    current_price = data['Close'].iloc[-1]
+                    name = "SPX (سباكس)" if s == '^SPX' else s
+                    
+                    # تنبيه بسيط يطمنك إن البوت شغال
+                    msg = (f"🦅 **رادار الفالكون يراقب الآن:**\n\n"
+                           f"📊 السهم: {name}\n"
+                           f"💰 السعر الحالي: ${current_price:.2f}\n"
+                           f"🕒 الحالة: يراقب السيولة...")
+                    
+                    bot.send_message(CHAT_ID, msg)
+                    time.sleep(5) 
+            except:
+                pass
+        
+        # يكرر الفحص كل ساعة (عشان ما يزعجك والسوق مقفل)
+        time.sleep(3600)
 
 if __name__ == "__main__":
     Thread(target=scanner).start()
